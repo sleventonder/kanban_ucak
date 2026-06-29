@@ -1,0 +1,923 @@
+<!DOCTYPE HTML>
+<html lang="tr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Teknik Takip Kanban Panosu</title>
+<style>
+  body {
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    background-color: #f4f6f9;
+    margin: 0;
+    padding: 15px;
+    color: #333;
+    box-sizing: border-box;
+  }
+  *, *:before, *:after {
+    box-sizing: inherit;
+  }
+  h2 { margin-top: 0; color: #2c3e50; font-size: 1.6rem; text-align: center; }
+  
+  .controls {
+    background: #ffffff;
+    padding: 15px;
+    border-radius: 8px;
+    margin-bottom: 20px;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+    align-items: center;
+  }
+  
+  .board {
+    display: grid;
+    grid-template-columns: 360px 1fr;
+    gap: 20px;
+    align-items: start;
+    width: 100%;
+  }
+  
+  .left-panel {
+    background: #ffffff;
+    border-radius: 8px;
+    padding: 15px;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+    min-height: 600px;
+    display: flex;
+    flex-direction: column;
+  }
+  .panel-header-wrapper {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border-bottom: 2px solid #e0e0e0;
+    padding-bottom: 8px;
+    margin-bottom: 12px;
+  }
+  .panel-title {
+    margin: 0;
+    font-size: 15px;
+    color: #2c3e50;
+    font-weight: bold;
+  }
+  .btn-add-manual {
+    background: #007bff;
+    color: white;
+    border: none;
+    border-radius: 4px;
+    padding: 5px 12px;
+    font-size: 12px;
+    font-weight: bold;
+    cursor: pointer;
+    white-space: nowrap;
+  }
+  .btn-add-manual:hover { background: #0056b3; }
+
+  .kanban-columns {
+    display: grid;
+    grid-template-columns: repeat(5, minmax(140px, 1fr));
+    gap: 12px;
+    align-items: start;
+    transition: all 0.3s ease;
+  }
+  .kanban-columns.show-ignore {
+    grid-template-columns: repeat(6, minmax(130px, 1fr));
+  }
+
+  .column {
+    background: #ebecf0;
+    border-radius: 8px;
+    padding: 12px;
+    min-height: 600px;
+    box-shadow: inset 0 0 5px rgba(0,0,0,0.05);
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    transition: all 0.3s ease;
+  }
+  .column h3 {
+    margin: 0 0 5px 0;
+    font-size: 13px;
+    text-transform: uppercase;
+    border-bottom: 2px solid #e0e0e0;
+    padding-bottom: 5px;
+    font-weight: bold;
+  }
+  #in_progress h3 { color: #007bff; }
+  #open h3 { color: #17a2b8; }
+  #closed h3 { color: #28a745; }
+  #mel h3 { color: #ffc107; }
+  #aog h3 { color: #dc3545; }
+  
+  #ignore {
+    background: #e2e3e5;
+    opacity: 0.85;
+  }
+  #ignore h3 { color: #6c757d; }
+  
+  .card {
+    background: #ffffff;
+    border: 1px solid #e0e0e0;
+    border-radius: 6px;
+    padding: 12px;
+    cursor: grab;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+    position: relative;
+    width: 100%;
+  }
+  .card:active { cursor: grabbing; }
+  
+  .card h4 { 
+    margin: 0 22px 8px 0; 
+    font-size: 11.5px; 
+    color: #2c3e50; 
+    line-height: 1.4; 
+    word-break: break-word; 
+    font-weight: 600;
+    cursor: pointer;
+    padding: 2px;
+    border-radius: 4px;
+  }
+  .card h4:hover {
+    color: #007bff;
+    background-color: #f1f3f5;
+  }
+
+  /* IGNORE KOMPAKT DÜZEN */
+  #ignore .card {
+    padding: 6px 10px;
+    background: #f8f9fa;
+    border-color: #d6d8db;
+    border-left: 4px solid #6c757d;
+    box-shadow: none;
+  }
+  #ignore .card h4 {
+    margin: 0 20px 0 0;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    color: #6c757d;
+  }
+  
+  #ignore .card .edit-zone, 
+  #ignore .card .badge, 
+  #ignore .card .notes-container {
+    display: none;
+  }
+
+  #ignore .card.expanded {
+    padding: 12px;
+  }
+  #ignore .card.expanded h4 {
+    white-space: normal;
+    overflow: visible;
+    margin-bottom: 8px;
+  }
+  #ignore .card.expanded .edit-zone, 
+  #ignore .card.expanded .badge, 
+  #ignore .card.expanded .notes-container {
+    display: block;
+  }
+
+  .btn-delete-card {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    background: none;
+    border: none;
+    color: #dc3545;
+    font-size: 14px;
+    cursor: pointer;
+    padding: 0;
+    line-height: 1;
+    font-weight: bold;
+    z-index: 10;
+  }
+  #ignore .btn-delete-card { top: 6px; }
+  #ignore .card.expanded .btn-delete-card { top: 10px; }
+  .btn-delete-card:hover { color: #bd2130; }
+
+  .badge {
+    display: inline-block;
+    padding: 2px 6px;
+    font-size: 9px;
+    font-weight: bold;
+    border-radius: 4px;
+    text-transform: uppercase;
+    color: #fff;
+    background: #6c757d;
+  }
+  .badge.aog { background-color: #dc3545; }
+  .badge.mel { background-color: #ffc107; color: #000; }
+  .badge.open { background-color: #17a2b8; }
+  .badge.closed { background-color: #28a745; }
+  .badge.in_progress { background-color: #007bff; }
+  .badge.ignore { background-color: #6c757d; }
+
+  .notes-container {
+    margin-top: 8px;
+    padding: 0;
+    list-style: none;
+    font-size: 11px;
+  }
+  .note-item {
+    background: #f8f9fa;
+    border-left: 3px solid #007bff;
+    padding: 4px 6px;
+    margin-bottom: 4px;
+    border-radius: 0 4px 4px 0;
+    font-style: italic;
+    color: #444;
+    cursor: pointer;
+    word-break: break-word;
+  }
+  #ignore .note-item { border-left-color: #6c757d; background: #e9ecef; color: #6c757d; }
+  .note-item:hover { background: #e9ecef; }
+
+  .edit-zone {
+    margin-top: 8px;
+    padding-top: 8px;
+    border-top: 1px dashed #ccc;
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+  }
+  .edit-zone select, .edit-zone input {
+    font-size: 11px;
+    padding: 5px;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    width: 100%;
+    box-sizing: border-box;
+  }
+  
+  button, .file-label {
+    padding: 8px 14px;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 12px;
+    font-weight: bold;
+    color: white;
+    white-space: nowrap;
+  }
+  .file-label { background-color: #007bff; display: inline-block; text-align: center; }
+  .file-label:hover { background-color: #0069d9; }
+  input[type="file"] { display: none; }
+  
+  .btn-report { background-color: #28a745; }
+  .btn-report:hover { background-color: #218838; }
+  .btn-pdf { background-color: #e67e22; }
+  .btn-pdf:hover { background-color: #d35400; }
+  .btn-hide-report { background-color: #e74c3c; }
+  .btn-hide-report:hover { background-color: #c0392b; }
+  .btn-reset { background-color: #7f8c8d; }
+  .btn-reset:hover { background-color: #95a5a6; }
+  .btn-toggle-ignore { background-color: #6c757d; }
+  .btn-toggle-ignore:hover { background-color: #5a6268; }
+
+  /* Gelişmiş Rapor Çıktı Alanı */
+  .report-wrapper {
+    margin-top: 25px;
+    background: #ffffff;
+    border: 1px solid #ddd;
+    border-radius: 8px;
+    padding: 20px;
+    box-shadow: 0 4px 10px rgba(0,0,0,0.05);
+    display: none;
+  }
+  .report-header-buttons {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 15px;
+    border-bottom: 1px solid #eee;
+    padding-bottom: 10px;
+  }
+  .report-output {
+    white-space: pre-wrap;
+    font-family: 'Courier New', Courier, monospace;
+    font-size: 13px;
+    line-height: 1.6;
+    background: #fafafa;
+    color: #2c3e50;
+    padding: 15px;
+    border-radius: 6px;
+    border: 1px solid #eaeaea;
+  }
+
+  /* MODAL AYARLARI */
+  .modal-overlay {
+    display: none;
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.6);
+    z-index: 9999;
+    justify-content: center;
+    align-items: center;
+    padding: 10px;
+  }
+  .modal-box {
+    background: #ffffff;
+    padding: 20px;
+    border-radius: 10px;
+    width: 100%;
+    max-width: 600px;
+    box-shadow: 0 5px 25px rgba(0,0,0,0.3);
+    display: flex;
+    flex-direction: column;
+    gap: 15px;
+  }
+  .modal-box h3 { margin: 0; font-size: 13px; color: #2c3e50; border-bottom: 2px solid #007bff; padding-bottom: 8px; }
+  .modal-box textarea {
+    width: 100%;
+    height: 140px;
+    font-size: 13px;
+    padding: 10px;
+    border: 1px solid #ccc;
+    border-radius: 6px;
+    box-sizing: border-box;
+    font-family: inherit;
+    resize: vertical;
+    line-height: 1.5;
+  }
+  .modal-buttons { display: flex; justify-content: flex-end; gap: 10px; }
+  .btn-modal-save { background-color: #28a745; }
+  .btn-modal-close { background-color: #6c757d; }
+
+  /* MEDIA QUERIES (Duyarlı Ekran Ayarları) */
+  @media (max-width: 1200px) {
+    .board { grid-template-columns: 1fr; }
+    .left-panel { min-height: auto; }
+    #backlog {
+      min-height: 150px;
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+      gap: 10px;
+    }
+  }
+  @media (max-width: 900px) {
+    .controls button, .controls .file-label { width: 100%; text-align: center; }
+    .kanban-columns { grid-template-columns: repeat(2, 1fr) !important; }
+    .column { min-height: 350px; }
+    .report-header-buttons { flex-direction: column; }
+    .report-header-buttons button { width: 100%; }
+  }
+  @media (max-width: 550px) {
+    .kanban-columns { grid-template-columns: 1fr !important; }
+    #backlog { grid-template-columns: 1fr; }
+    .column { min-height: auto; }
+  }
+
+  /* ==========================================================================
+     MÜKEMMEL PDF ÇIKTISI ALMAK İÇİN ÖZEL PRINT STİLİ
+     ========================================================================== */
+  @media print {
+    body {
+      background: white !important;
+      color: black !important;
+      padding: 0;
+      margin: 0;
+    }
+    /* Rapor dışındaki tüm arayüzü, butonları, panoları gizle */
+    h2, .controls, .board, .report-header-buttons, .modal-overlay {
+      display: none !important;
+    }
+    /* Rapor alanını tam sayfa kapla */
+    .report-wrapper {
+      display: block !important;
+      border: none !important;
+      box-shadow: none !important;
+      padding: 0 !important;
+      margin: 0 !important;
+      width: 100% !important;
+    }
+    .report-output {
+      background: white !important;
+      border: none !important;
+      font-size: 12pt !important; /* Standart doküman font boyutu */
+      font-family: 'Courier New', Courier, monospace !important;
+      color: black !important;
+      padding: 0 !important;
+    }
+  }
+</style>
+</head>
+<body>
+
+<h2>Teknik Takip & Kanban Yönetimi</h2>
+
+<div class="controls">
+  <label class="file-label">📂 Yeni CSV Listesi Karşılaştır/Ekle
+    <input type="file" accept=".csv" onchange="loadAndCompareCSV(this)">
+  </label>
+  
+  <button class="btn-toggle-ignore" onclick="toggleIgnoreColumn()">👁️ Ignore Kutusunu Gizle/Göster</button>
+  <button class="btn-reset" onclick="resetSystem()">🔄 Hafızayı Temizle / Sıfırla</button>
+  <button class="btn-report" onclick="generateDailyReport()" style="margin-left: auto;">📋 Günlük Rapor Oluştur</button>
+</div>
+
+<div class="board">
+  <div class="left-panel">
+    <div class="panel-header-wrapper">
+      <div class="panel-title">Gelen İş Listesi</div>
+      <button class="btn-add-manual" onclick="addManualCard()">[+] Kart Ekle</button>
+    </div>
+    <div id="backlog" class="column" ondrop="drop(event)" ondragover="allowDrop(event)"></div>
+  </div>
+
+  <div class="kanban-columns show-ignore" id="kanbanColumns">
+    <div id="in_progress" class="column" ondrop="drop(event)" ondragover="allowDrop(event)">
+      <h3>In Progress</h3>
+    </div>
+    <div id="open" class="column" ondrop="drop(event)" ondragover="allowDrop(event)">
+      <h3>Open</h3>
+    </div>
+    <div id="closed" class="column" ondrop="drop(event)" ondragover="allowDrop(event)">
+      <h3>Closed</h3>
+    </div>
+    <div id="mel" class="column" ondrop="drop(event)" ondragover="allowDrop(event)">
+      <h3>MEL</h3>
+    </div>
+    <div id="aog" class="column" ondrop="drop(event)" ondragover="allowDrop(event)">
+      <h3>AOG</h3>
+    </div>
+    <div id="ignore" class="column" ondrop="drop(event)" ondragover="allowDrop(event)">
+      <h3>Ignore</h3>
+    </div>
+  </div>
+</div>
+
+<div id="reportWrapper" class="report-wrapper">
+  <div class="report-header-buttons">
+    <button class="btn-pdf" onclick="downloadReportAsPDF()">🖨️ Raporu PDF / Yazıcıya Gönder</button>
+    <button class="btn-hide-report" onclick="hideReportZone()">❌ Raporu Kapat / Gizle</button>
+  </div>
+  <div id="reportZone" class="report-output"></div>
+</div>
+
+<div class="modal-overlay" id="editModal" onclick="closeModalOnOverlay(event)">
+  <div class="modal-box">
+    <h3 id="modalTargetType">Metni Düzenle</h3>
+    <textarea id="modalTextArea" placeholder="Metni buraya girin..."></textarea>
+    <div class="modal-buttons">
+      <button class="btn-modal-close" onclick="closeModal()">Kapat</button>
+      <button class="btn-modal-save" onclick="saveModalChanges()">Kaydet</button>
+    </div>
+  </div>
+</div>
+
+<script>
+let kanbanState = {};
+let isIgnoreHidden = false;
+
+let currentEditingElement = null;
+let currentEditingType = ''; 
+
+document.addEventListener("DOMContentLoaded", function() {
+  const savedIgnoreVisibility = localStorage.getItem("kanbanIgnoreHidden");
+  if (savedIgnoreVisibility === "true") {
+    isIgnoreHidden = true;
+    applyIgnoreVisibility();
+  }
+
+  const savedState = localStorage.getItem("kanbanDataStore");
+  if (savedState) {
+    try {
+      kanbanState = JSON.parse(savedState);
+      if (typeof kanbanState !== 'object' || !kanbanState.hasOwnProperty('ignore')) {
+        localStorage.removeItem("kanbanDataStore");
+        kanbanState = {};
+      } else {
+        rebuildBoardFromState();
+      }
+    } catch(e) {
+      localStorage.removeItem("kanbanDataStore");
+      kanbanState = {};
+    }
+  }
+
+  document.addEventListener('keydown', function(e) {
+    if (e.key === 'Escape' && document.getElementById('editModal').style.display === 'flex') {
+      closeModal();
+    }
+    if (e.key === 'Enter' && e.ctrlKey && document.getElementById('editModal').style.display === 'flex') {
+      saveModalChanges();
+    }
+  });
+});
+
+function saveToLocalStorage() {
+  kanbanState = {};
+  const columns = ['backlog', 'in_progress', 'open', 'closed', 'mel', 'aog', 'ignore'];
+  
+  columns.forEach(colId => {
+    const col = document.getElementById(colId);
+    if(!col) return;
+    const cards = col.querySelectorAll('.card');
+    kanbanState[colId] = [];
+    
+    cards.forEach(card => {
+      const id = card.id;
+      const title = card.querySelector('h4').textContent;
+      const currentSelectValue = card.querySelector('select').value;
+      
+      const noteItems = card.querySelectorAll('.note-item');
+      let notes = [];
+      noteItems.forEach(note => {
+        notes.push(note.textContent.replace(/^•\s*/, ''));
+      });
+      
+      kanbanState[colId].push({ id, title, selectValue: currentSelectValue, notes });
+    });
+  });
+  
+  localStorage.setItem("kanbanDataStore", JSON.stringify(kanbanState));
+  localStorage.setItem("kanbanIgnoreHidden", isIgnoreHidden);
+}
+
+function rebuildBoardFromState() {
+  for (let colId in kanbanState) {
+    const colContainer = document.getElementById(colId);
+    if (!colContainer) continue;
+    
+    kanbanState[colId].forEach(cardData => {
+      const card = createCard(cardData.id, cardData.title);
+      colContainer.appendChild(card);
+      
+      const select = card.querySelector('select');
+      if (select) select.value = cardData.selectValue;
+      
+      const badge = card.querySelector('.badge');
+      if (colId !== 'backlog') {
+        badge.textContent = colId.toUpperCase().replace('_', ' ');
+        badge.className = `badge ${colId}`;
+      }
+      
+      if (cardData.notes && cardData.notes.length > 0) {
+        const ul = document.createElement('ul');
+        ul.className = 'notes-container';
+        
+        cardData.notes.forEach(noteText => {
+          const li = document.createElement('li');
+          li.className = 'note-item';
+          li.textContent = "• " + noteText;
+          li.addEventListener('dblclick', function(e) { openPopupEditor(li, 'note', e); });
+          ul.appendChild(li);
+        });
+        card.insertBefore(ul, card.querySelector('.edit-zone'));
+      }
+    });
+  }
+}
+
+function toggleIgnoreColumn() {
+  isIgnoreHidden = !isIgnoreHidden;
+  applyIgnoreVisibility();
+  saveToLocalStorage();
+}
+
+function applyIgnoreVisibility() {
+  const ignoreCol = document.getElementById("ignore");
+  const boardColumns = document.getElementById("kanbanColumns");
+  if(!ignoreCol || !boardColumns) return;
+  
+  if (isIgnoreHidden) {
+    ignoreCol.style.display = "none";
+    boardColumns.classList.remove("show-ignore");
+  } else {
+    ignoreCol.style.display = "flex";
+    boardColumns.classList.add("show-ignore");
+  }
+}
+
+function addManualCard() {
+  const taskText = prompt("Eklenecek arıza tanımını yazın:");
+  if (!taskText || !taskText.trim()) return;
+
+  const backlog = document.getElementById('backlog');
+  const uniqueId = `manual-task-${Date.now()}`;
+  const card = createCard(uniqueId, taskText.trim().toUpperCase());
+  
+  backlog.appendChild(card);
+  saveToLocalStorage();
+}
+
+function loadAndCompareCSV(input) {
+  const file = input.files[0];
+  if (!file) return;
+
+  const reader = new FileReader();
+  reader.onload = function(e) {
+    let text = e.target.result;
+    text = text.replace(/^\uFEFF/, '').trim();
+    
+    const lines = text.split(/\r?\n/);
+    const backlog = document.getElementById('backlog');
+    
+    const existingTitles = [];
+    const allExistingCards = document.querySelectorAll('.card h4');
+    allExistingCards.forEach(h4 => {
+      let pureExistingText = h4.textContent.replace(/^\d+\s*-\s*/, '').trim().toUpperCase();
+      existingTitles.push(pureExistingText);
+    });
+
+    let addedCounter = 0;
+    let ignoredCounter = 0;
+    let currentCardIndex = backlog.children.length;
+
+    lines.forEach((line, index) => {
+      if (!line.trim()) return;
+      
+      let delimiter = line.includes(';') ? ';' : (line.includes('\t') ? '\t' : ',');
+      const columns = line.split(delimiter).map(col => col.replace(/^["']|["']$/g, '').trim());
+      const cleanColumns = columns.filter(col => col !== "");
+      
+      if (cleanColumns.length > 0) {
+        let rowText = cleanColumns.join(" - ").toUpperCase();
+        let pureCSVRowText = rowText.replace(/^\d+\s*-\s*/, '').trim();
+
+        if (existingTitles.includes(pureCSVRowText)) {
+          ignoredCounter++;
+          return; 
+        }
+
+        currentCardIndex++;
+        addedCounter++;
+        
+        const cardId = `csv-task-${index}-${Date.now()}-${currentCardIndex}`;
+        const card = createCard(cardId, `${currentCardIndex} - ${pureCSVRowText}`);
+        backlog.appendChild(card);
+      }
+    });
+
+    saveToLocalStorage();
+    input.value = "";
+    alert(`Karşılaştırma Tamamlandı!\n\n• Panoda zaten var olan ${ignoredCounter} mükerrer arıza listeden elendi.\n• Sistemde olmayan ${addedCounter} yeni arıza listeye başarıyla eklendi.`);
+  };
+  reader.readAsText(file, "UTF-8");
+}
+
+function resetSystem() {
+  if (confirm("Hafızayı tamamen sıfırlamak istiyor musunuz? Tüm panonuz temizlenecektir.")) {
+    localStorage.clear();
+    location.reload();
+  }
+}
+
+function allowDrop(ev) { ev.preventDefault(); }
+function drag(ev) { ev.dataTransfer.setData("Text", ev.target.id); }
+
+function drop(ev) {
+  ev.preventDefault();
+  var data = ev.dataTransfer.getData("Text");
+  var card = document.getElementById(data);
+  
+  var targetColumn = ev.target.classList.contains('column') ? ev.target : ev.target.closest('.column');
+  if (targetColumn) {
+    targetColumn.appendChild(card);
+    updateCardStatusDirectly(card, targetColumn.id);
+    handleIgnoreToggleView(card, targetColumn.id);
+    saveToLocalStorage();
+  }
+}
+
+function handleStatusChange(cardId, newStatus) {
+  if (!newStatus) return;
+  const card = document.getElementById(cardId);
+  const badge = document.getElementById(`badge-${cardId}`);
+  
+  badge.textContent = newStatus.toUpperCase().replace('_', ' ');
+  badge.className = `badge ${newStatus}`;
+
+  const targetColumn = document.getElementById(newStatus);
+  if (targetColumn) {
+    targetColumn.appendChild(card);
+    handleIgnoreToggleView(card, newStatus);
+    saveToLocalStorage();
+  }
+}
+
+function updateCardStatusDirectly(card, columnId) {
+  const select = card.querySelector('select');
+  const badge = card.querySelector('.badge');
+  
+  if (columnId === 'backlog') {
+    if(select) select.value = "";
+    if(badge) { badge.textContent = "LİSTEDE"; badge.className = "badge"; }
+  } else {
+    if(select) select.value = columnId;
+    if(badge) {
+      badge.textContent = columnId.toUpperCase().replace('_', ' ');
+      badge.className = `badge ${columnId}`;
+    }
+  }
+}
+
+function handleIgnoreToggleView(card, columnId) {
+  if (columnId !== 'ignore') {
+    card.classList.remove('expanded');
+  }
+}
+
+function toggleCardAccordion(h4Element) {
+  const card = h4Element.closest('.card');
+  const parentColumn = card.parentElement.id;
+  if (parentColumn === 'ignore') {
+    card.classList.toggle('expanded');
+  }
+}
+
+function openPopupEditor(element, type, event) {
+  event.stopPropagation(); 
+  currentEditingElement = element;
+  currentEditingType = type;
+
+  const modal = document.getElementById('editModal');
+  const modalTitle = document.getElementById('modalTargetType');
+  const modalArea = document.getElementById('modalTextArea');
+
+  if (type === 'title') {
+    modalTitle.textContent = "ARIZA TANIMINI PENCEREDE DÜZENLE";
+    modalArea.value = element.textContent;
+  } else if (type === 'note') {
+    modalTitle.textContent = "TEKNİK NOTU PENCEREDE DÜZENLE";
+    modalArea.value = element.textContent.replace(/^•\s*/, '');
+  }
+
+  modal.style.display = 'flex';
+  modalArea.focus();
+}
+
+function closeModal() {
+  document.getElementById('editModal').style.display = 'none';
+  currentEditingElement = null;
+  currentEditingType = '';
+}
+
+function closeModalOnOverlay(event) {
+  if(event.target.id === 'editModal') {
+    closeModal();
+  }
+}
+
+function saveModalChanges() {
+  if (!currentEditingElement) return;
+
+  const modalArea = document.getElementById('modalTextArea');
+  const updatedText = modalArea.value.trim();
+
+  if (currentEditingType === 'title') {
+    if (updatedText) {
+      currentEditingElement.textContent = updatedText.toUpperCase();
+    }
+  } else if (currentEditingType === 'note') {
+    if (updatedText) {
+      currentEditingElement.textContent = "• " + updatedText;
+    } else {
+      currentEditingElement.remove(); 
+    }
+  }
+
+  closeModal();
+  saveToLocalStorage(); 
+}
+
+function deleteCard(cardId, event) {
+  event.stopPropagation();
+  if (confirm("Bu teknik takip kartını tamamen silmek istediğinize emin misiniz?")) {
+    const card = document.getElementById(cardId);
+    if(card) {
+      card.remove();
+      saveToLocalStorage();
+    }
+  }
+}
+
+function createCard(id, fullText) {
+  const card = document.createElement('div');
+  card.className = 'card';
+  card.id = id;
+  card.draggable = true;
+  card.ondragstart = drag;
+
+  card.innerHTML = `
+    <button class="btn-delete-card" onclick="deleteCard('${id}', event)" title="Kartı Sil">×</button>
+    <h4 onclick="toggleCardAccordion(this)">${fullText}</h4>
+    <div><span class="badge" id="badge-${id}">LİSTEDE</span></div>
+    <div class="edit-zone">
+      <select onchange="handleStatusChange('${id}', this.value)">
+        <option value="">Durum Değiştir / Gönder...</option>
+        <option value="in_progress">In Progress</option>
+        <option value="open">Open</option>
+        <option value="closed">Closed</option>
+        <option value="mel">MEL</option>
+        <option value="aog">AOG</option>
+        <option value="ignore">Ignore</option>
+      </select>
+      <input type="text" placeholder="Not yazıp Enter'a basın..." onchange="addNewNote('${id}', this)">
+    </div>
+  `;
+
+  const h4Element = card.querySelector('h4');
+  h4Element.addEventListener('dblclick', function(e) {
+    openPopupEditor(h4Element, 'title', e);
+  });
+
+  return card;
+}
+
+function addNewNote(cardId, inputElement) {
+  const noteText = inputElement.value.trim();
+  if (!noteText) return;
+
+  const card = document.getElementById(cardId);
+  let notesContainer = card.querySelector('.notes-container');
+  
+  if (!notesContainer) {
+    notesContainer = document.createElement('ul');
+    notesContainer.className = 'notes-container';
+    card.insertBefore(notesContainer, card.querySelector('.edit-zone'));
+  }
+
+  const li = document.createElement('li');
+  li.className = 'note-item';
+  li.textContent = "• " + noteText;
+  
+  li.addEventListener('dblclick', function(e) {
+    openPopupEditor(li, 'note', e);
+  });
+
+  notesContainer.appendChild(li);
+  inputElement.value = ""; 
+  saveToLocalStorage();
+}
+
+// 📋 GÜNLÜK ÖZET RAPOR ÜRETİCİ
+function generateDailyReport() {
+  const columns = ['in_progress', 'open', 'closed', 'mel', 'aog'];
+  const now = new Date();
+  const dateStr = now.toLocaleDateString('tr-TR') + ' ' + now.toLocaleTimeString('tr-TR', {hour: '2-digit', minute:'2-digit'});
+  
+  let reportText = `=================================================================\n`;
+  reportText += `                   TEKNİK TAKİP VARDİYA RAPORU                  \n`;
+  reportText += `                   Rapor Tarihi: ${dateStr}                     \n`;
+  reportText += `=================================================================\n\n`;
+  
+  columns.forEach(colId => {
+    const col = document.getElementById(colId);
+    if(!col) return;
+    let title = col.querySelector('h3').textContent;
+    const cards = col.querySelectorAll('.card');
+    
+    reportText += `▶ ${title.toUpperCase()} (${cards.length} Kalem Record)\n`;
+    reportText += `-----------------------------------------------------------------\n`;
+    
+    if(cards.length === 0) {
+      reportText += `  - Aktif takip kaydı bulunmamaktadır.\n`;
+    } else {
+      cards.forEach(card => {
+        const taskTitle = card.querySelector('h4').textContent;
+        reportText += `  • [ARIZA] : ${taskTitle}\n`;
+        
+        const noteItems = card.querySelectorAll('.note-item');
+        if (noteItems.length > 0) {
+          noteItems.forEach(item => {
+            const pureNote = item.textContent.replace(/^•\s*/, '');
+            reportText += `    └─ [NOT]: ${pureNote}\n`;
+          });
+        }
+        reportText += `\n`;
+      });
+    }
+    reportText += `\n`;
+  });
+  
+  reportText += `=================================================================\n`;
+  reportText += `                 VARDİYA TEKNİK RAPOR SONUDUR                    \n`;
+  reportText += `=================================================================`;
+
+  const reportWrapper = document.getElementById('reportWrapper');
+  const reportZone = document.getElementById('reportZone');
+  
+  reportZone.textContent = reportText;
+  reportWrapper.style.display = 'block';
+  reportWrapper.scrollIntoView({ behavior: 'smooth' });
+}
+
+// ❌ RAPOR PANELİNİ GİZLEME FONKSİYONU
+function hideReportZone() {
+  document.getElementById('reportWrapper').style.display = 'none';
+}
+
+// 🖨️ PDF OLARAK YAZDIRMA/KAYDETME FONKSİYONU
+function downloadReportAsPDF() {
+  // Tarayıcının yerleşik yazdırma panelini açar (Print -> Save as PDF)
+  window.print();
+}
+</script>
+</body>
+</html>
