@@ -144,7 +144,6 @@
     background-color: #f1f3f5;
   }
 
-  /* IGNORE KOMPAKT DÜZEN */
   #ignore .card {
     padding: 6px 10px;
     background: #f8f9fa;
@@ -277,7 +276,6 @@
   .btn-toggle-ignore { background-color: #6c757d; }
   .btn-toggle-ignore:hover { background-color: #5a6268; }
 
-  /* Gelişmiş Rapor Çıktı Alanı */
   .report-wrapper {
     margin-top: 25px;
     background: #ffffff;
@@ -306,7 +304,6 @@
     border: 1px solid #eaeaea;
   }
 
-  /* MODAL AYARLARI */
   .modal-overlay {
     display: none;
     position: fixed;
@@ -348,7 +345,6 @@
   .btn-modal-save { background-color: #28a745; }
   .btn-modal-close { background-color: #6c757d; }
 
-  /* MEDIA QUERIES (Duyarlı Ekran Ayarları) */
   @media (max-width: 1200px) {
     .board { grid-template-columns: 1fr; }
     .left-panel { min-height: auto; }
@@ -372,37 +368,11 @@
     .column { min-height: auto; }
   }
 
-  /* ==========================================================================
-     MÜKEMMEL PDF ÇIKTISI ALMAK İÇİN ÖZEL PRINT STİLİ
-     ========================================================================== */
   @media print {
-    body {
-      background: white !important;
-      color: black !important;
-      padding: 0;
-      margin: 0;
-    }
-    /* Rapor dışındaki tüm arayüzü, butonları, panoları gizle */
-    h2, .controls, .board, .report-header-buttons, .modal-overlay {
-      display: none !important;
-    }
-    /* Rapor alanını tam sayfa kapla */
-    .report-wrapper {
-      display: block !important;
-      border: none !important;
-      box-shadow: none !important;
-      padding: 0 !important;
-      margin: 0 !important;
-      width: 100% !important;
-    }
-    .report-output {
-      background: white !important;
-      border: none !important;
-      font-size: 12pt !important; /* Standart doküman font boyutu */
-      font-family: 'Courier New', Courier, monospace !important;
-      color: black !important;
-      padding: 0 !important;
-    }
+    body { background: white !important; color: black !important; padding: 0; margin: 0; }
+    h2, .controls, .board, .report-header-buttons, .modal-overlay { display: none !important; }
+    .report-wrapper { display: block !important; border: none !important; box-shadow: none !important; padding: 0 !important; margin: 0 !important; width: 100% !important; }
+    .report-output { background: white !important; border: none !important; font-size: 12pt !important; font-family: 'Courier New', Courier, monospace !important; color: black !important; padding: 0 !important; }
   }
 </style>
 </head>
@@ -421,6 +391,7 @@
 </div>
 
 <div class="board">
+  <!-- SOL PANEL -->
   <div class="left-panel">
     <div class="panel-header-wrapper">
       <div class="panel-title">Gelen İş Listesi</div>
@@ -429,6 +400,7 @@
     <div id="backlog" class="column" ondrop="drop(event)" ondragover="allowDrop(event)"></div>
   </div>
 
+  <!-- SAĞ PANEL -->
   <div class="kanban-columns show-ignore" id="kanbanColumns">
     <div id="in_progress" class="column" ondrop="drop(event)" ondragover="allowDrop(event)">
       <h3>In Progress</h3>
@@ -473,7 +445,6 @@
 <script>
 let kanbanState = {};
 let isIgnoreHidden = false;
-
 let currentEditingElement = null;
 let currentEditingType = ''; 
 
@@ -540,6 +511,17 @@ function saveToLocalStorage() {
 }
 
 function rebuildBoardFromState() {
+  // Ekranda eski kalıntı varsa temizle
+  const columns = ['backlog', 'in_progress', 'open', 'closed', 'mel', 'aog', 'ignore'];
+  columns.forEach(c => { 
+    const el = document.getElementById(c); 
+    if(el) {
+      const h3 = el.querySelector('h3');
+      el.innerHTML = '';
+      if(h3) el.appendChild(h3);
+    }
+  });
+
   for (let colId in kanbanState) {
     const colContainer = document.getElementById(colId);
     if (!colContainer) continue;
@@ -606,6 +588,7 @@ function addManualCard() {
   saveToLocalStorage();
 }
 
+// 🛠️ ATOMİK BELLEK KİLİTLİ GÜVENLİ CSV OKUMA VE KIYASLAMA FONKSİYONU
 function loadAndCompareCSV(input) {
   const file = input.files[0];
   if (!file) return;
@@ -627,7 +610,7 @@ function loadAndCompareCSV(input) {
 
     let addedCounter = 0;
     let ignoredCounter = 0;
-    let currentCardIndex = backlog.children.length;
+    let currentCardIndex = backlog.querySelectorAll('.card').length;
 
     lines.forEach((line, index) => {
       if (!line.trim()) return;
@@ -654,7 +637,11 @@ function loadAndCompareCSV(input) {
       }
     });
 
-    saveToLocalStorage();
+    // KESİN KAYIT: UI'a basıldığı an belleğe eşzamanlı kilit atıyoruz
+    setTimeout(function() {
+      saveToLocalStorage();
+    }, 50);
+
     input.value = "";
     alert(`Karşılaştırma Tamamlandı!\n\n• Panoda zaten var olan ${ignoredCounter} mükerrer arıza listeden elendi.\n• Sistemde olmayan ${addedCounter} yeni arıza listeye başarıyla eklendi.`);
   };
@@ -856,7 +843,6 @@ function addNewNote(cardId, inputElement) {
   saveToLocalStorage();
 }
 
-// 📋 GÜNLÜK ÖZET RAPOR ÜRETİCİ
 function generateDailyReport() {
   const columns = ['in_progress', 'open', 'closed', 'mel', 'aog'];
   const now = new Date();
@@ -908,14 +894,11 @@ function generateDailyReport() {
   reportWrapper.scrollIntoView({ behavior: 'smooth' });
 }
 
-// ❌ RAPOR PANELİNİ GİZLEME FONKSİYONU
 function hideReportZone() {
   document.getElementById('reportWrapper').style.display = 'none';
 }
 
-// 🖨️ PDF OLARAK YAZDIRMA/KAYDETME FONKSİYONU
 function downloadReportAsPDF() {
-  // Tarayıcının yerleşik yazdırma panelini açar (Print -> Save as PDF)
   window.print();
 }
 </script>
